@@ -2,11 +2,17 @@ import os
 import sys
 import argparse
 import random
+from importlib import metadata
 from pathlib import Path
 import soundfile as sf
 import numpy as np
 from Crypto.Protocol.SecretSharing import Shamir
 from Crypto.Util.Padding import pad, unpad
+
+try:
+    __version__ = metadata.version("stegshare")
+except metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 def embed_data_to_flac(base_flac_path: Path, data_bytes: bytes, output_flac_path: Path):
     """Decode a FLAC file and embed data into the LSB of the audio samples before re-encoding it."""
@@ -168,6 +174,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Tool that hides an entire file inside FLAC files using Shamir secret sharing (k-out-of-N) instead of encrypting it."
     )
+    parser.add_argument("-V", "--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="mode", required=True, help="Select the execution mode")
 
     # Split mode
