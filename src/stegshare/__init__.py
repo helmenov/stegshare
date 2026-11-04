@@ -14,6 +14,12 @@ try:
 except metadata.PackageNotFoundError:
     __version__ = "0.0.0"
 
+
+def _flac_capacity_bits(flac_path: Path) -> int:
+    """Return the number of available LSB bits in a FLAC file."""
+    audio_data, _ = sf.read(str(flac_path), dtype='int16')
+    return int(audio_data.size)
+
 def embed_data_to_flac(base_flac_path: Path, data_bytes: bytes, output_flac_path: Path):
     """Decode a FLAC file and embed data into the LSB of the audio samples before re-encoding it."""
     audio_data, samplerate = sf.read(str(base_flac_path), dtype='int16')
@@ -72,7 +78,8 @@ def split_file_completely_into_flac(secret_file: str, base_flac_dir: str, output
     if len(flac_files) < n:
         raise ValueError(f"At least {n} FLAC files are required to create {n} shares, but only {len(flac_files)} were found in '{base_flac_dir}'.")
 
-    selected_flac_files = random.sample(flac_files, n)
+    selected_flac_files = sorted(random.sample(flac_files, n), key=lambda p: p.name)
+    total_capacity_bits = sum(_flac_capacity_bits(path) for path in selected_flac_files)
     print("[*] Selected the following FLAC carriers for share generation:")
     for carrier_path in selected_flac_files:
         print(f"    {carrier_path.resolve()}")
@@ -90,6 +97,13 @@ def split_file_completely_into_flac(secret_file: str, base_flac_dir: str, output
     payload = pad(raw_payload, chunk_size, style='pkcs7')
 
     music_buffers = [bytearray() for _ in range(n)]
+    required_bits = len(payload) * 8
+    if total_capacity_bits < required_bits:
+        raise ValueError(
+            "The selected FLAC carriers do not have enough total LSB capacity for the secret. "
+            f"Required capacity: {required_bits} bits, available: {total_capacity_bits} bits. "
+            "Use more carrier FLAC files or choose a larger set of FLAC files before splitting."
+        )
 
     print(f"[*] Splitting the target file ({data_len} bytes) using Shamir secret sharing... (threshold k={k}, total n={n})")
 
