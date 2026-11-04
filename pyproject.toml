@@ -9,17 +9,9 @@ dependencies = [
     "pycryptodome>=4.3.0",
     "soundfile>=0.14.0",
 ]
-<<<<<<< HEAD
-<<<<<<< HEAD
-||||||| parent of 00e5eb8 (initial committ)
-=======
 include = ["README_ja.md"]
->>>>>>> 00e5eb8 (initial committ)
-||||||| e581f81
-=======
->>>>>>> origin/main
 
-[[project.authors]]
+[project.authors]
 name = "Kotaro SONODA"
 email = "kotaro1976@gmail.com"
 
