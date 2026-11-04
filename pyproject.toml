@@ -11,7 +11,7 @@ dependencies = [
 ]
 include = ["README_ja.md"]
 
-[project.authors]
+[[project.authors]]
 name = "Kotaro SONODA"
 email = "kotaro1976@gmail.com"
 
