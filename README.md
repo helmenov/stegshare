@@ -1,167 +1,137 @@
 # stegshare
 
-stegshare is a Python tool that embeds a confidential file into a FLAC audio file, splits it using Shamir's secret sharing in a k-out-of-n scheme, and restores the original file when enough FLAC files are gathered.
+stegshare hides a file inside FLAC audio and splits it into Shamir shares. Recover the original file by combining any valid `k` shares from `n` generated FLAC carriers.
 
-Key features:
-- Embed a file directly into the FLAC LSB (Least Significant Bit) layer
-- Split a single secret into multiple shares using Shamir secret sharing
-- Reconstruct the original file from k or more FLAC files during recovery
-- Provide both a CLI and a Python API
+## Features
 
-## What it can do
+- hide a file in FLAC audio samples using LSB steganography
+- split the secret with Shamir secret sharing (`k-of-n`)
+- generate share files named from the original FLAC carrier names
+- use via CLI or Python API
 
-This project supports two main operations.
-
-### 1. Split a file into FLAC shares
-
-- Specify a secret file
-- Specify a directory containing FLAC files
-- Specify the threshold `k` and total count `n`
-- Automatically generate `n` FLAC share files
-
-Internally, it adds a length header to the secret data, splits it with Shamir, and embeds each share into the LSB of the FLAC audio samples.
-
-### 2. Recover the original file from FLAC shares
-
-- Provide multiple FLAC files needed for recovery
-- Reconstruct the original file using `k` or more shares
-- Output the original data in its original byte form
-
-## Requirements
-
-- Python 3.12 or later
-- A directory containing FLAC files
-- The source FLAC files must have enough audio capacity for the data being embedded
-
-## Installation
+## Quick start
 
 ```bash
-mise install it+https://github.com/helmenov/stegshare.git" = "latest"
-```
-
-After installation, the `stegshare` command is available.
-
-## CLI usage
-
-### Show help
-
-```bash
-stegshare --help
-```
-
-### Split (secret file into FLAC shares)
-
-```bash
+uv sync
 stegshare split \
-  -s ./secret_file \
+  -s ./secret.txt \
   -w ./base_flacs \
   -o ./flac_shares \
-  -k 3 \
-  -n 5
+  -k 2 \
+  -n 4
+
+stegshare combine \
+  -i ./flac_shares/01_share1.flac \
+     ./flac_shares/023_share2.flac \
+  -o ./recovered.txt
 ```
 
-- `-s` / `--secret`: path to the secret file
-- `-w` / `--flacdir`: directory containing FLAC files
-- `-o` / `--outdir`: output directory for generated FLAC shares
-- `-k`: minimum number of files required for recovery
-- `-n`: total number of shares to generate
-
-After execution, FLAC files are generated in the output directory like this:
+Example carrier directory:
 
 ```text
-./flac_shares/
-  flac_share_1.flac
-  flac_share_2.flac
-  flac_share_3.flac
-  flac_share_4.flac
-  flac_share_5.flac
+base_flacs/
+  01.flac
+  023.flac
+  031.flac
+  056.flac
 ```
 
-When distributing them, you may rename each FLAC file as needed.
+Generated shares:
 
-### Recover (restore the original file from FLAC shares)
-
-```bash
-stegshare combine \
-  -i flac_share_1.flac \
-     flac_share_2.flac \
-     flac_share_3.flac \
-  -o ./recovered_file
+```text
+flac_shares/
+  01_share1.flac
+  023_share2.flac
+  031_share3.flac
+  056_share4.flac
 ```
 
-- `-i` / `--inputs`: FLAC files to be used for recovery
-- `-o` / `--output`: output path for the recovered file
-
-If you prepare `k` or more shares from the split operation, the contents of `recovered_file` can be restored to match the original `secret_file` exactly.
-
-## Python API usage
+## Python API
 
 ```python
-from pathlib import Path
 from stegshare import split_file_completely_into_flac, combine_flac_into_file
 
 split_file_completely_into_flac(
     secret_file="./secret.txt",
     base_flac_dir="./base_flacs",
     output_dir="./flac_shares",
-    k=3,
-    n=5,
+    k=2,
+    n=4,
 )
 
 combine_flac_into_file(
     chosen_flac_paths=[
-        "./flac_shares/flac_share_1.flac",
-        "./flac_shares/flac_share_2.flac",
-        "./flac_shares/flac_share_3.flac",
+        "./flac_shares/01_share1.flac",
+        "./flac_shares/023_share2.flac",
     ],
     recovered_file="./recovered.txt",
 )
 ```
 
-You can also use the lower-level LSB embedding and extraction directly:
+## Usage image / slide
 
-```python
-from pathlib import Path
-from stegshare import embed_data_to_flac, extract_data_from_flac
-
-embed_data_to_flac(
-    base_flac_path=Path("./source.flac"),
-    data_bytes=b"hello world",
-    output_flac_path=Path("./embedded.flac"),
-)
-
-payload = extract_data_from_flac(Path("./embedded.flac"), data_len=11)
-print(payload)
+```text
++------------------+      +-------------------------------+
+| Secret file      | ---> | stegshare split              |
++------------------+      |   - select n FLAC carriers   |
+                           |   - split with Shamir        |
+                           |   - embed shares in LSB      |
+                           +---------------+-------------+
+                                           |
+                                           v
+                    +---------------------------+
+                    | 01_share1.flac            |
+                    | 023_share2.flac           |
+                    | 031_share3.flac           |
+                    | 056_share4.flac           |
+                    +---------------------------+
+                                           |
+                     need only k of n shares
+                                           |
+                                           v
+                           +----------------------+
+                           | stegshare combine    |
+                           +----------------------+
+                                           |
+                                           v
+                           +----------------------+
+                           | recovered.txt        |
+                           +----------------------+
 ```
 
-## Key implementation details
+```mermaid
+flowchart LR
+    A[Secret file] --> B[Split with Shamir]
+    B --> C[Share 1..n embedded in FLAC]
+    C --> D{Collect any k of n shares}
+    D --> E[Recover original file]
+```
 
-- `split` divides the secret file into 16-byte chunks
-- Each chunk is converted into `k`-of-`n` shares using Shamir secret sharing
-- The share data is embedded into the LSB of existing FLAC audio samples
-- `combine` extracts the LSB from each FLAC file, reconstructs the data with Shamir, and restores the original file
+## Notes
 
-## Constraints and warnings
+- `k` must be `<= n`
+- the source FLAC directory must contain at least `n` files
+- output shares use the selected carrier base name, such as `01.flac -> 01_share1.flac`
+- FLAC capacity must be large enough for the hidden payload
 
-- The FLAC directory must contain at least one `.flac` file
-- If the FLAC audio data does not have enough capacity, embedding raises a `ValueError`
-- `k` must be less than or equal to `n`
-- Because the original FLAC is reused as a carrier for audio playback, the embedded data changes the audio waveform
-- This tool is intended for hiding secret files inside FLAC files, not as a general-purpose encryption solution
-
-## Example workflow
+## Installation
 
 ```bash
-mkdir -p ./base_flacs ./flac_shares
-# 1. Prepare FLAC files to use as shares
-# 2. Split the secret
-stegshare split -s ./important.txt -w ./base_flacs -o ./flac_shares -k 2 -n 4
-# 3. Recover the original file using at least two FLAC files
-stegshare combine -i ./flac_shares/flac_share_1.flac ./flac_shares/flac_share_2.flac -o ./restored.txt
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-## Reference
+Or with uv:
 
-- Python package name: `stegshare`
-- Command: `stegshare`
-- Dependencies: `numpy`, `soundfile`, `pycryptodome`
+```bash
+git clone <repository-url>
+cd stegshare
+uv sync
+```
+
+## Dependencies
+
+- `numpy`
+- `soundfile`
+- `pycryptodome`

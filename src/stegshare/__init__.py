@@ -63,9 +63,13 @@ def split_file_completely_into_flac(secret_file: str, base_flac_dir: str, output
     flac_files = [p for p in flac_dir_path.iterdir() if p.suffix.lower() == '.flac']
     if not flac_files:
         raise FileNotFoundError(f"No FLAC files (.flac) were found in the specified directory: {base_flac_dir}")
+    if len(flac_files) < n:
+        raise ValueError(f"At least {n} FLAC files are required to create {n} shares, but only {len(flac_files)} were found in '{base_flac_dir}'.")
 
-    base_path = random.choice(flac_files)
-    print(f"[*] Randomly selected the following base audio source:\n    {base_path.resolve()}")
+    selected_flac_files = random.sample(flac_files, n)
+    print("[*] Selected the following FLAC carriers for share generation:")
+    for carrier_path in selected_flac_files:
+        print(f"    {carrier_path.resolve()}")
 
     with open(secret_path, 'rb') as f:
         original_data = f.read()
@@ -93,10 +97,11 @@ def split_file_completely_into_flac(secret_file: str, base_flac_dir: str, output
                 music_buffers[idx].append(share_id)
             music_buffers[idx].extend(share_value)
 
-    print("[*] Embedding all shares directly into the LSB of each FLAC waveform...")
+    print("[*] Embedding all shares directly into the LSB of each selected FLAC waveform...")
     for idx, buf in enumerate(music_buffers):
-        output_flac = out_dir / f"flac_share_{idx + 1}.flac"
-        embed_data_to_flac(base_path, bytes(buf), output_flac)
+        carrier_path = selected_flac_files[idx]
+        output_flac = out_dir / f"{carrier_path.stem}_share_{idx + 1}{carrier_path.suffix}"
+        embed_data_to_flac(carrier_path, bytes(buf), output_flac)
         print(f"  [+] Created: {output_flac}")
     print("[+] Secret sharing completed successfully.")
 
